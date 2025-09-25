@@ -1,0 +1,14 @@
+[project]
+name = "authorship-attribution"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "dotenv>=0.9.9",
+    "nltk>=3.9.1",
+    "numpy>=2.2.6",
+    "rich>=14.1.0",
+    "scikit-learn>=1.7.2",
+    "tensorflow>=2.20.0",
+]
