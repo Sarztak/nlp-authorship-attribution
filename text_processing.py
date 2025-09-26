@@ -146,7 +146,7 @@ def vectorize_documents_char_ngram(data_path, words_per_segment, labels_dict, ng
     for segment in segments:
         segment = ' '.join(segment)
         x.append(pad_sequences([hashing_trick(segment, round(len(vocab)*1.3))], words_per_segment)[0])
-        y = to_categorical(label_num, len(label_num))
+        y = to_categorical(labels, len(labels))
     
     return np.array(x), y, len(vocab)
 
