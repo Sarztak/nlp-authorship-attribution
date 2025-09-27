@@ -1,3 +1,7 @@
+"""
+code adapted from here: https://github.com/awslabs/keras-apache-mxnet/blob/master/examples/babi_memnn.py
+"""
+
 from __future__ import print_function
 
 import tensorflow as tf
@@ -21,7 +25,6 @@ def tokenize(sent):
     >>> tokenize('Bob dropped the apple. Where is the apple?')
     ['Bob', 'dropped', 'the', 'apple', '.', 'Where', 'is', 'the', 'apple', '?']
     '''
-    breakpoint()
     return [x.strip() for x in re.split(r'(\W)', sent) if x.strip()]
 
 
@@ -31,6 +34,9 @@ def parse_stories(lines, only_supporting=False):
     If only_supporting is true, only the sentences
     that support the answer are kept.
     '''
+    max_len_s = 0
+    max_len_q = 0
+    vocab = set()
     data = []
     story = []
     for line in lines:
@@ -42,6 +48,9 @@ def parse_stories(lines, only_supporting=False):
         if '\t' in line:
             q, a, supporting = line.split('\t')
             q = tokenize(q)
+            vocab = vocab.union(set(q))
+            vocab.add(a)
+            max_len_q = max(max_len_q, len(q))
             substory = None
             if only_supporting:
                 # Only select the related substory
@@ -54,8 +63,10 @@ def parse_stories(lines, only_supporting=False):
             story.append('')
         else:
             sent = tokenize(line)
+            vocab = vocab.union(set(sent))
+            max_len_s = max(max_len_s, len(sent))
             story.append(sent)
-    return data
+    return data, max_len_s, max_len_q, vocab
 
 
 def get_stories(f, only_supporting=False, max_length=None):
@@ -66,21 +77,26 @@ def get_stories(f, only_supporting=False, max_length=None):
     If max_length is supplied,
     any stories longer than max_length tokens will be discarded.
     '''
-    data = parse_stories(f.readlines(), only_supporting=only_supporting)
-    flatten = lambda data: reduce(lambda x, y: x + y, data)
-    data = [(flatten(story), q, answer) for story, q, answer in data
-            if not max_length or len(flatten(story)) < max_length]
-    return data
+    data, max_len_s, max_len_q,vocab = parse_stories(f.readlines(), only_supporting=only_supporting)
+    # flatten = lambda data: reduce(lambda x, y: x + y, data)
+    # data = [(flatten(story), q, answer) for story, q, answer in data
+    #         if not max_length or len(flatten(story)) < max_length]
+    return data, max_len_s, max_len_q, vocab
 
 
-def vectorize_stories(data):
+def vectorize_stories(data, max_len_s, max_len_q, word_idx):
     inputs, queries, answers = [], [], []
     for story, query, answer in data:
-        inputs.append([word_idx[w] for w in story])
+        line_tokenized = []
+        for line in story:
+            line_tokenized.append([word_idx[w] for w in line])
+
+        line_tokenized = pad_sequences(line_tokenized, maxlen=max_len_s)  
+        inputs.append(line_tokenized)
         queries.append([word_idx[w] for w in query])
         answers.append(word_idx[answer])
-    return (pad_sequences(inputs, maxlen=story_maxlen),
-            pad_sequences(queries, maxlen=query_maxlen),
+    return (inputs,
+            pad_sequences(queries, maxlen=max_len_q),
             np.array(answers))
 
 try:
@@ -108,31 +124,24 @@ challenge = challenges[challenge_type]
 
 print('Extracting stories for the challenge:', challenge_type)
 with tarfile.open(path) as tar:
-    train_stories = get_stories(tar.extractfile(challenge.format('train')))
-    test_stories = get_stories(tar.extractfile(challenge.format('test')))
+    train_stories, train_max_len_s, train_max_len_q, train_vocab = get_stories(tar.extractfile(challenge.format('train')))
+    test_stories, test_max_len_s, test_max_len_q, test_vocab = get_stories(tar.extractfile(challenge.format('test')))
 
-vocab = set()
-for story, q, answer in train_stories + test_stories:
-    vocab |= set(story + q + [answer])
-vocab = sorted(vocab)
+max_len_s = max(train_max_len_s, test_max_len_s)
+max_len_q = max(train_max_len_q, test_max_len_q)
+vocab = sorted(train_vocab.union(test_vocab))
+
+# vocab = set()
+# for story, q, answer in train_stories + test_stories:
+#     vocab |= set(story + q + [answer])
+# vocab = sorted(vocab)
 
 # Reserve 0 for masking via pad_sequences
 vocab_size = len(vocab) + 1
-story_maxlen = max(map(len, (x for x, _, _ in train_stories + test_stories)))
-query_maxlen = max(map(len, (x for _, x, _ in train_stories + test_stories)))
-
-print('-')
-print('Vocab size:', vocab_size, 'unique words')
-print('Story max length:', story_maxlen, 'words')
-print('Query max length:', query_maxlen, 'words')
-print('Number of training stories:', len(train_stories))
-print('Number of test stories:', len(test_stories))
-print('-')
-print('Here\'s what a "story" tuple looks like (input, query, answer):')
-print(train_stories[0])
-print('-')
-print('Vectorizing the word sequences...')
+# story_maxlen = max(map(len, (x for x, _, _ in train_stories + test_stories)))
+# query_maxlen = max(map(len, (x for _, x, _ in train_stories + test_stories)))
 
 word_idx = dict((c, i + 1) for i, c in enumerate(vocab))
-inputs_train, queries_train, answers_train = vectorize_stories(train_stories)
-inputs_test, queries_test, answers_test = vectorize_stories(test_stories)
+inputs_train, queries_train, answers_train = vectorize_stories(train_stories, max_len_s, max_len_q, word_idx)
+inputs_test, queries_test, answers_test = vectorize_stories(test_stories, max_len_s, max_len_q, word_idx)
+breakpoint()
