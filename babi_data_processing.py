@@ -1,5 +1,5 @@
 """
-code adapted from here: https://github.com/awslabs/keras-apache-mxnet/blob/master/examples/babi_memnn.py
+dataset extracting partially adapted from here: https://github.com/awslabs/keras-apache-mxnet/blob/master/examples/babi_memnn.py
 """
 
 import tensorflow as tf
