@@ -3,3 +3,4 @@ pan12-authorship-attribution-corpora
 .env
 .python-version
 aclImdb_v1
+aclImdb_v1_archive
