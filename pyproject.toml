@@ -15,4 +15,5 @@ dependencies = [
     "scikit-learn>=1.7.2",
     "tensorflow>=2.20.0",
     "tensorflow-datasets>=4.9.9",
+    "wordcloud>=1.9.4",
 ]

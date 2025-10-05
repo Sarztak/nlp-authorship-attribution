@@ -6,26 +6,36 @@ import tensorflow as tf
 from tensorflow.keras import Model, layers
 import tensorflow.keras.backend as K
 from rich.traceback import install
+from wordcloud import WordCloud
+import numpy as np 
+
 
 install()
 
 stopwords  = set(stopwords.words('english'))
-word_index = reuters.get_word_index(path="reuters_word_index.json")
-word_index = {idx: word for word, idx in word_index.items() if word not in stopwords}
+word2idx_base = reuters.get_word_index(path="reuters_word_index.json")
+rev = {idx + 3: word for word, idx in word2idx_base.items()}
 
-def remove_stopwords(x, word_index):
-    """x is a numpy array of python list"""
-    for l in range(len(x)):
-        x[l] = [w for w in x[l] if w not in word_index]
-
-(x_train, y_train), (x_test, y_test) = reuters.load_data(num_words=None, test_split=0.2)
-x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2, random_state=1984)
-
-remove_stopwords(x_train, word_index)
-remove_stopwords(x_val, word_index)
-remove_stopwords(x_test, word_index)
 
 max_words = 5000
+idx2word_bow = {idx: rev.get(idx) for idx in range(3, max_words)}
+
+stop_ids_plus3 = {word2idx_base[word] + 3 for word in stopwords if word in word2idx_base}
+
+def remove_stopwords(seqs):
+    special_tokens = (0, 1, 2) # 0: padding, 1: start, 2: oov
+    """x is a numpy array of python list"""
+    for i, seq in enumerate(seqs):
+        seqs[i] = [t for t in seq if t not in stop_ids_plus3 and t not in special_tokens]
+
+(x_train, y_train), (x_test, y_test) = reuters.load_data(num_words=None, test_split=0.2)
+
+x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2, random_state=1984)
+
+remove_stopwords(x_train)
+remove_stopwords(x_val)
+remove_stopwords(x_test)
+
 num_classes = max(y_train) + 1
 
 tokenizer = Tokenizer(num_words=max_words)
@@ -80,9 +90,20 @@ if __name__ == "__main__":
     model = MLPAttention(max_words, num_classes)
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-    model.fit(train_ds, validation_data=val_ds, epochs=1)
+    model.fit(train_ds, validation_data=val_ds, epochs=5)
 
     x, _ = next(iter(train_ds))
     acts = model(x, return_intermediate=True)
-    attn = acts["attention"]
-    values, indices = tf.math.top_k(attn, 100)
+    attn = acts["attention"].numpy()
+    
+    
+    present_weights = attn * x.numpy()
+    scores = present_weights[0] # batch 0
+    k = min(100, int((scores > 0).sum()))
+    topk_idx = np.argsort(scores)[-k:].tolist()
+    freqs = {idx2word_bow[i]: float(scores[i]) for i in topk_idx if i in idx2word_bow}
+
+
+    wc = WordCloud(width=800, height=400, background_color="white")
+    img = wc.generate_from_frequencies(freqs).to_image()
+    img.show()
