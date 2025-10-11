@@ -4,3 +4,6 @@ pan12-authorship-attribution-corpora
 .python-version
 aclImdb_v1
 aclImdb_v1_archive
+nlp_assignments
+MLOps
+/data_v1.parquet
